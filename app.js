@@ -849,7 +849,8 @@ const STRINGS = {
     installApp: "أضف إلى الشاشة الرئيسية", installHint:
       "افتح قائمة المشاركة في المتصفح ثم اختر «إضافة إلى الشاشة الرئيسية».",
     capital: "رأس المال والسيولة", capitalSub: "نقدك ورأس مالك وحقوق ملكيتك",
-    openLedger: "افتح الدفتر", openingCash: "النقد الموجود معك الآن",
+    openLedger: "افتح الدفتر", editOpening: "تعديل المركز الافتتاحي",
+    editOpeningNote: "تغيير رأس المال الافتتاحي يعيد حساب حقوق الملكية والنقد المتاح. الصفقات والمصاريف لا تتأثر.", openingCash: "النقد الموجود معك الآن",
     openingDate: "تاريخ الافتتاح", openingNote:
       "الصفقات المؤرَّخة قبل هذا التاريخ لا تُنشأ لها حركات نقدية — تُدرَج ضمن المركز الافتتاحي.",
     openingPosition: "المركز الافتتاحي", openingEquity: "حقوق الملكية الافتتاحية",
@@ -1134,7 +1135,8 @@ const STRINGS = {
     installApp: "Add to Home Screen", installHint:
       "Open the browser share menu and choose Add to Home Screen.",
     capital: "Capital & Cash Flow", capitalSub: "Cash, capital and owner equity",
-    openLedger: "Open the ledger", openingCash: "Cash you hold right now",
+    openLedger: "Open the ledger", editOpening: "Edit opening position",
+    editOpeningNote: "Changing opening capital recalculates equity and available cash. Deals and expenses are unaffected.", openingCash: "Cash you hold right now",
     openingDate: "Opening date", openingNote:
       "Deals dated before this date generate no cash movements — they sit in the opening position.",
     openingPosition: "Opening position", openingEquity: "Opening equity",
@@ -3832,7 +3834,20 @@ function migrateBackup(data, schema) {
   out.deals = (data.deals || []).map((d) => {
     const seed = mkDeal();
     const deal = { ...seed, ...d };
-    deal.expenses = (d.expenses || []).map((e) => ({ ...mkExpense(), ...e }));
+    deal.expenses = (d.expenses || []).map((e, ix) => {
+      const merged = { ...mkExpense(), ...e };
+      /* لا يُترك المعرّف فارغاً — وإلا تعذّر حذف البند لاحقاً */
+      if (!merged.expenseId) merged.expenseId = uid("exp");
+      return merged;
+    });
+    /* ضمان تفرّد المعرّفات — لو تكرر معرّف يُحذف بندان معاً */
+    {
+      const seen = new Set();
+      deal.expenses.forEach((e) => {
+        while (seen.has(e.expenseId)) e.expenseId = uid("exp");
+        seen.add(e.expenseId);
+      });
+    }
     deal.photos = Array.isArray(d.photos) ? d.photos : [];
     deal.leads = (Array.isArray(d.leads) ? d.leads : []).map(normalizeLead);
     deal.priceHistory = Array.isArray(d.priceHistory) ? d.priceHistory : [];
@@ -4092,9 +4107,32 @@ const Styles = ({ rtl, vars }) => (
       body{background:#fff!important}
       body *{visibility:hidden!important}
       .printArea,.printArea *{visibility:visible!important}
-      .printArea{position:absolute!important;inset:0!important;margin:0!important;
-        border-radius:0!important;box-shadow:none!important;max-width:none!important}
+      .printArea{position:absolute!important;top:0!important;left:0!important;
+        right:0!important;bottom:auto!important;
+        width:100%!important;max-width:none!important;
+        margin:0!important;padding:0!important;
+        border-radius:0!important;box-shadow:none!important;
+        background:#fff!important;color:#000!important;
+        font-size:11pt!important;line-height:1.55!important}
       .noPrint,.nav{display:none!important}
+
+      /* منع قص العناصر بين الصفحات */
+      .printArea *{box-shadow:none!important}
+      .printArea table,.printArea tr,.printArea img{break-inside:avoid;
+        page-break-inside:avoid}
+      .printArea h1,.printArea h2,.printArea h3{break-after:avoid;
+        page-break-after:avoid}
+      .pBlock{break-inside:avoid;page-break-inside:avoid}
+
+      /* ألوان الخلفيات تُطبع كما هي */
+      .printArea{-webkit-print-color-adjust:exact!important;
+        print-color-adjust:exact!important}
+    }
+
+    /* مقاس الورقة وهوامشها */
+    @page{size:A4 portrait;margin:14mm 12mm}
+    @media print{
+      html,body{width:210mm!important;margin:0!important;padding:0!important}
     }
     @keyframes hShine{0%{transform:translateX(-160%) skewX(-18deg)}
       100%{transform:translateX(320%) skewX(-18deg)}}
@@ -4448,8 +4486,9 @@ function MoneyInput({ value, onChange, ccy, big, err }) {
       border: `1px solid ${err ? C.red : big ? C.line : C.line}`, borderRadius: RD.md,
       padding: big ? "14px 16px" : "12px 13px" }}>
       <span style={{ fontSize: big ? 13 : 11, color: C.ink2, fontWeight: 700 }}>{CURRENCIES[ccy].ar}</span>
-      <input className="num" type="number" inputMode="decimal" step="0.001" value={value}
-        onChange={(e) => onChange(num(e.target.value))}
+      <input className="num" type="number" inputMode="decimal" step="0.001"
+        value={value === 0 || value === "0" ? "" : value}
+        onChange={(e) => onChange(e.target.value === "" ? 0 : num(e.target.value))}
         style={{ flex: 1, background: "transparent", border: 0, outline: "none",
           textAlign: big ? "center" : "end", color: C.white,
           font: `800 ${big ? 30 : 21}px 'Inter',sans-serif` }} />
@@ -6103,7 +6142,7 @@ function SoldSheet({ deal, model, k, A, t, lang, ccy, onClose, flash, st }) {
               onChange={(e) => set("soldDate", e.target.value)} /></SheetField>
           <SheetField label={`${t("receivedAtClosing")} · ${U}`}>
             <input className="inp ltr" type="number" inputMode="decimal"
-              value={f.receivedAtClosing}
+              value={f.receivedAtClosing || ""}
               onChange={(e) => set("receivedAtClosing", num(e.target.value))} /></SheetField>
         </div>
 
@@ -6339,7 +6378,7 @@ function CostsScreen({ deal, model, k, A, t, lang, ccy, go, setSheet, setConfirm
             onAction={() => setSheet({ type: "expense", expense: null })} />
         )}
 
-        {deal.expenses.map((e) => {
+        {deal.expenses.map((e, i) => {
           const cat = catOf(e);
           return (
             <div key={e.expenseId} style={{ display: "flex", alignItems: "center", gap: 10,
@@ -6395,7 +6434,8 @@ function CostsScreen({ deal, model, k, A, t, lang, ccy, go, setSheet, setConfirm
               <button aria-label="delete" style={{ background: "none", border: 0, cursor: "pointer",
                 padding: 4 }} onClick={() => setConfirm({ text: t("confirmDeleteExp"), danger: true,
                   onYes: () => A.patchDeal(deal.dealId, {
-                    expenses: deal.expenses.filter((x) => x.expenseId !== e.expenseId) }) })}>
+                    /* الحذف بالفهرس أدق — يحمي لو تكرر المعرّف أو غاب */
+                    expenses: deal.expenses.filter((x, xi) => xi !== i) }) })}>
                 <Ic n="trash" c={C.red} s={17} /></button>
             </div>
           );
@@ -6544,7 +6584,7 @@ function ExpenseSheet({ deal, A, t, lang, ccy, initial, onClose }) {
         ) : (
           <SheetField label={`${t("expTotal")} · ${CURRENCIES[ccy].ar}`} error={errs.amount}>
             <input className="inp ltr" data-err={errs.amount ? "1" : "0"} type="number"
-              inputMode="decimal" step="0.001" value={f.amount}
+              inputMode="decimal" step="0.001" value={f.amount || ""}
               onChange={(e) => setF((s) => ({ ...s, amount: e.target.value }))} placeholder="0" />
           </SheetField>
         )}
@@ -7667,7 +7707,8 @@ function LeadsSheet({ deal, A, t, lang, ccy, onClose }) {
                     </div>
                   ))}
                   <div style={{ display: "flex", gap: 8, marginTop: 9 }}>
-                    <input className="inp ltr" type="number" inputMode="decimal" value={amt}
+                    <input className="inp ltr" type="number" inputMode="decimal"
+                      value={amt === 0 || amt === "0" ? "" : amt}
                       onChange={(e) => setAmt(e.target.value)} placeholder="0" style={{ flex: 1 }} />
                     <input className="inp" value={note} onChange={(e) => setNote(e.target.value)}
                       placeholder={t("notes")} style={{ flex: 1 }} />
@@ -7765,10 +7806,10 @@ function DealReport({ deal, model, k, t, lang, ccy, st, onClose }) {
     <div style={{ position: "fixed", inset: 0, zIndex: 120, background: C.scrimSolid,
       overflowY: "auto", padding: 14 }}>
       <div className="printArea" style={{ background: "#fff", color: "#111", borderRadius: 12,
-        padding: 20, maxWidth: 640, margin: "0 auto",
+        padding: 22, maxWidth: 700, width: "100%", margin: "0 auto", boxSizing: "border-box",
         fontFamily: lang === "ar" ? "'Cairo',sans-serif" : "'Inter',sans-serif" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, borderBottom: "2px solid #111",
-          paddingBottom: 12, marginBottom: 16 }}>
+        <div className="pBlock" style={{ display: "flex", alignItems: "center", gap: 12,
+          borderBottom: "2px solid #111", paddingBottom: 12, marginBottom: 16 }}>
           <img src={LOGO_SRC} alt="" style={{ height: 46 }} />
           <div style={{ flex: 1, textAlign: "end" }}>
             <div style={{ fontSize: 17, fontWeight: 800 }}>{t("report")}</div>
@@ -7783,20 +7824,25 @@ function DealReport({ deal, model, k, t, lang, ccy, st, onClose }) {
             deal.mileage && `${f0(num(deal.mileage))} km`].filter(Boolean).join("  ·  ")}
         </div>
 
+        <div className="pBlock">
         <ReportLine l={t("purchasePrice")} v={money(k.purchasePrice, ccy, { exact: true, fixed: true })} />
         <ReportLine l={t("totalExp")} v={money(k.totalExpenses, ccy, { exact: true, fixed: true })} />
         <ReportLine l={t("totalCost")} v={money(k.totalCost, ccy, { exact: true, fixed: true })} bold />
         <ReportLine l={k.isSold ? t("soldPrice") : t("sellPrice")}
           v={money(k.sellingPrice, ccy, { exact: true, fixed: true })} bold />
-        <ReportLine l={t("netProfit")} v={signed(k.profit)} bold col={k.profit >= 0 ? "#0A7" : "#C00"} />
+        <ReportLine l={t("netProfit")}
+          v={(k.profit >= 0 ? "+" : "−") + money(Math.abs(k.profit), ccy, { exact: true, fixed: true })}
+          bold col={k.profit >= 0 ? "#0A7" : "#C00"} />
         <ReportLine l={t("roi")} v={pct(k.roi)} col={k.profit >= 0 ? "#0A7" : "#C00"} />
         <ReportLine l={t("margin")} v={pct(k.margin)} />
         <ReportLine l={t("breakEven")} v={money(k.breakEven, ccy, { exact: true, fixed: true })} />
         <ReportLine l={t("daysHeld")} v={`${k.daysHeld} ${t("dayUnit")}`} />
+        </div>
 
         {deal.expenses.length > 0 && (
           <>
-            <h3 style={{ fontSize: 13.5, fontWeight: 800, margin: "18px 0 8px" }}>{t("expList")}</h3>
+            <h3 className="pBlock" style={{ fontSize: 13.5, fontWeight: 800,
+              margin: "18px 0 8px" }}>{t("expList")}</h3>
             {deal.expenses.map((e) => (
               <ReportLine key={e.expenseId}
                 l={e.description || (EXPENSE_CATS[e.category] || EXPENSE_CATS.other)[lang]}
@@ -7807,18 +7853,21 @@ function DealReport({ deal, model, k, t, lang, ccy, st, onClose }) {
 
         {deal.notes && (
           <>
-            <h3 style={{ fontSize: 13.5, fontWeight: 800, margin: "18px 0 8px" }}>{t("notes")}</h3>
-            <p style={{ fontSize: 12.5, lineHeight: 1.9, color: "#333" }}>{deal.notes}</p>
+            <div className="pBlock">
+              <h3 style={{ fontSize: 13.5, fontWeight: 800, margin: "18px 0 8px" }}>{t("notes")}</h3>
+              <p style={{ fontSize: 12.5, lineHeight: 1.9, color: "#333" }}>{deal.notes}</p>
+            </div>
           </>
         )}
 
-        <div style={{ marginTop: 22, paddingTop: 12, borderTop: "1px solid #DDD",
+        <div className="pBlock" style={{ marginTop: 22, paddingTop: 12,
+          borderTop: "1px solid #DDD",
           fontSize: 10.5, color: "#777", textAlign: "center", direction: "ltr" }}>
           {t("reportBy")} H CAR DEAL — BUY • COST • SELL • PROFIT
         </div>
       </div>
 
-      <div className="noPrint" style={{ display: "flex", gap: 10, maxWidth: 640,
+      <div className="noPrint" style={{ display: "flex", gap: 10, maxWidth: 700,
         margin: "14px auto 0" }}>
         <button className="btnO" onClick={onClose}>{t("cancel")}</button>
         <button className="btnG" onClick={() => window.print()}>{t("printReport")}</button>
@@ -8069,20 +8118,20 @@ function ReserveScreen({ st, A, t, lang, ccy, go, flash, setConfirm }) {
 
         {S.reserveMode === "fixed" ? (
           <SheetField label={`${t("reserveFixed")} · ${U}`}>
-            <input className="inp ltr" type="number" inputMode="decimal" value={S.reserveFixed}
+            <input className="inp ltr" type="number" inputMode="decimal" value={S.reserveFixed || ""}
               onChange={(e) => setS("reserveFixed", num(e.target.value))} />
           </SheetField>
         ) : (
           <SheetField label={t("reservePct")}>
-            <input className="inp ltr" type="number" inputMode="decimal" value={S.reservePct}
+            <input className="inp ltr" type="number" inputMode="decimal" value={S.reservePct || ""}
               onChange={(e) => setS("reservePct", num(e.target.value))} />
-            <input className="rng" type="range" min={0} max={60} step={5} value={S.reservePct}
+            <input className="rng" type="range" min={0} max={60} step={5} value={S.reservePct || ""}
               onChange={(e) => setS("reservePct", +e.target.value)} style={{ marginTop: 8 }} />
           </SheetField>
         )}
 
         <SheetField label={`${t("reserveTarget")} · ${U}`} hint={t("reserveHint")}>
-          <input className="inp ltr" type="number" inputMode="decimal" value={S.reserveTarget}
+          <input className="inp ltr" type="number" inputMode="decimal" value={S.reserveTarget || ""}
             onChange={(e) => setS("reserveTarget", num(e.target.value))} />
         </SheetField>
       </div>
@@ -8102,7 +8151,8 @@ function ReserveScreen({ st, A, t, lang, ccy, go, flash, setConfirm }) {
           ))}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <input className="inp ltr" type="number" inputMode="decimal" value={amt}
+          <input className="inp ltr" type="number" inputMode="decimal"
+                      value={amt === 0 || amt === "0" ? "" : amt}
             onChange={(e) => setAmt(e.target.value)} placeholder="0" style={{ flex: 1 }} />
           <button className="btnG" style={{ width: 120 }} disabled={!num(amt)}
             onClick={() => { A.addReserve({ type: kind, amount: num(amt) });
@@ -8389,7 +8439,7 @@ function CashSheet({ st, A, t, lang, ccy, kind, onClose, flash }) {
         </SheetField>
 
         <SheetField label={`${t("amount")} · ${U}`}>
-          <input className="inp ltr" type="number" inputMode="decimal" value={f.amount}
+          <input className="inp ltr" type="number" inputMode="decimal" value={f.amount || ""}
             onChange={(e) => set("amount", e.target.value)} placeholder="0" />
         </SheetField>
 
@@ -8462,7 +8512,7 @@ function BizSheet({ A, t, lang, ccy, onClose, flash, initial }) {
 
         <SheetField label={`${t("amount")} · ${U}`} error={err}>
           <input className="inp ltr" type="number" inputMode="decimal" step="0.001"
-            value={f.amount} onChange={(e) => set("amount", e.target.value)} placeholder="0" />
+            value={f.amount || ""} onChange={(e) => set("amount", e.target.value)} placeholder="0" />
         </SheetField>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))",
@@ -8550,14 +8600,15 @@ function BizSheet({ A, t, lang, ccy, onClose, flash, initial }) {
 }
 
 /* مجموعة مؤشرات في لوحة التحكم المالية */
-function FinGroup({ title, icon, children, accent }) {
+function FinGroup({ title, icon, children, accent, action }) {
   return (
     <div className="card" style={{ padding: 14, marginBottom: 12,
       borderColor: accent || C.line }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <Ic n={icon} c={accent ? C.gold : C.ink2} s={17} />
-        <span style={{ fontSize: 12.5, fontWeight: 800,
+        <span style={{ flex: 1, fontSize: 12.5, fontWeight: 800,
           color: accent ? C.gold : C.ink2, letterSpacing: ".02em" }}>{title}</span>
+        {action}
       </div>
       {children}
     </div>
@@ -8596,6 +8647,7 @@ function CapitalScreen({ st, A, t, lang, ccy, go, flash, setConfirm, setSheet })
   const f = useMemo(() => cashEngine(st), [st]);
   const [openCash, setOpenCash] = useState("");
   const [tab, setTab] = useState("summary");
+  const [editCap, setEditCap] = useState(null);   /* تعديل المركز الافتتاحي */
 
   /* ---- شاشة افتتاح الدفتر ---- */
   if (!f.opened) {
@@ -8611,7 +8663,7 @@ function CapitalScreen({ st, A, t, lang, ccy, go, flash, setConfirm, setSheet })
             marginBottom: 16 }}>{t("openingNote")}</p>
 
           <SheetField label={`${t("openingCash")} · ${U}`}>
-            <input className="inp ltr" type="number" inputMode="decimal" value={openCash}
+            <input className="inp ltr" type="number" inputMode="decimal" value={openCash || ""}
               onChange={(e) => setOpenCash(e.target.value)} placeholder="0" />
           </SheetField>
 
@@ -8646,6 +8698,41 @@ function CapitalScreen({ st, A, t, lang, ccy, go, flash, setConfirm, setSheet })
         ))}
       </div>
 
+      {editCap !== null && (
+        <div className="card" style={{ padding: 15, marginBottom: 12,
+          borderColor: C.goldEdge }}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: C.gold,
+            marginBottom: 12, textAlign: "start" }}>{t("editOpening")}</div>
+
+          <SheetField label={`${t("openingCash")} · ${U}`}>
+            <input className="inp ltr" type="number" inputMode="decimal" step="0.001"
+              value={editCap.cash || ""} placeholder="0"
+              onChange={(e) => setEditCap({ ...editCap, cash: e.target.value })} />
+          </SheetField>
+
+          <div style={{ marginTop: 10 }}>
+            <SheetField label={t("openingDate")}>
+              <input className="inp ltr" type="date" value={editCap.date || ""}
+                onChange={(e) => setEditCap({ ...editCap, date: e.target.value })} />
+            </SheetField>
+          </div>
+
+          <p style={{ fontSize: 10.5, color: C.ink4, lineHeight: 1.85,
+            marginTop: 10, textAlign: "start" }}>{t("editOpeningNote")}</p>
+
+          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            <ActionButton kind="quiet" onClick={() => setEditCap(null)}
+              style={{ flex: 1 }}>{t("cancel")}</ActionButton>
+            <ActionButton kind="primary" style={{ flex: 2 }}
+              onClick={() => {
+                A.setCapital({ opened: true, openingCash: num(editCap.cash),
+                  openingDate: editCap.date || todayISO() });
+                setEditCap(null); buzz(14); Sfx.money(); flash(t("savedOk"));
+              }}>{t("save")}</ActionButton>
+          </div>
+        </div>
+      )}
+
       {tab === "summary" && (
         <>
           {/* النقد — أبرز رقمين */}
@@ -8660,7 +8747,12 @@ function CapitalScreen({ st, A, t, lang, ccy, go, flash, setConfirm, setSheet })
           </div>
 
           {/* ١ · رأس المال */}
-          <FinGroup title={t("grpCapital")} icon="coins" accent>
+          <FinGroup title={t("grpCapital")} icon="coins" accent
+            action={<span onClick={() => { buzz();
+              setEditCap({ cash: st.capital?.openingCash || "",
+                date: st.capital?.openingDate || todayISO() }); }}
+              role="button" style={{ fontSize: 11, fontWeight: 700, color: C.gold,
+                cursor: "pointer", padding: "4px 8px" }}>{t("edit")}</span>}>
             <FinRow l={t("openingCapital")} v={money(f.openingCapital, ccy, { exact: true, fixed: true })} />
             <FinRow l={t("ownerContributions")} v={money(f.ownerContributions, ccy, { exact: true, fixed: true })}
               col={C.green} />
@@ -9137,12 +9229,12 @@ function InspectionScreen({ st, A, t, lang, ccy, go, flash, setConfirm }) {
         </div>
         {insp.desiredMode === "roi" ? (
           <SheetField label={`${t("byRoi")} %`}>
-            <input className="inp ltr" type="number" inputMode="decimal" value={insp.desiredRoi}
+            <input className="inp ltr" type="number" inputMode="decimal" value={insp.desiredRoi || ""}
               onChange={(e) => set("desiredRoi", num(e.target.value))} />
           </SheetField>
         ) : (
           <SheetField label={`${t("byProfit")} · ${U}`}>
-            <input className="inp ltr" type="number" inputMode="decimal" value={insp.desiredProfit}
+            <input className="inp ltr" type="number" inputMode="decimal" value={insp.desiredProfit || ""}
               onChange={(e) => set("desiredProfit", num(e.target.value))} />
           </SheetField>
         )}
@@ -9624,11 +9716,11 @@ function ImportScreen({ st, A, t, lang, ccy, go, flash, setConfirm }) {
         </div>
         {imp.desiredMode === "roi" ? (
           <SheetField label={`${t("byRoi")} %`}>
-            <input className="inp ltr" type="number" inputMode="decimal" value={imp.desiredRoi}
+            <input className="inp ltr" type="number" inputMode="decimal" value={imp.desiredRoi || ""}
               onChange={(e) => set("desiredRoi", num(e.target.value))} /></SheetField>
         ) : (
           <SheetField label={`${t("byProfit")} · ${U}`}>
-            <input className="inp ltr" type="number" inputMode="decimal" value={imp.desiredProfit}
+            <input className="inp ltr" type="number" inputMode="decimal" value={imp.desiredProfit || ""}
               onChange={(e) => set("desiredProfit", num(e.target.value))} /></SheetField>
         )}
 
@@ -10240,7 +10332,7 @@ function SettingsScreen({ st, A, t, lang, ccy, liveDeals, setConfirm, flash, mod
             .map(([k2, lb]) => (
             <SheetField key={k2} label={`${lb} · ${t("dayUnit")}`}>
               <input className="inp ltr" type="number" inputMode="numeric"
-                value={(st.settings.aging || AGING_DEFAULT)[k2]}
+                value={(st.settings.aging || AGING_DEFAULT)[k2] || ""}
                 onChange={(e) => A.setSetting("aging",
                   { ...(st.settings.aging || AGING_DEFAULT), [k2]: num(e.target.value) })} />
             </SheetField>
@@ -10336,12 +10428,12 @@ function SettingsScreen({ st, A, t, lang, ccy, liveDeals, setConfirm, flash, mod
         <div className="card" style={{ padding: 12, marginBottom: 10, display: "grid", gap: 12 }}>
           <div>
             <div style={{ fontSize: 11.5, color: C.ink2, marginBottom: 6 }}>{t("defaultTarget")}</div>
-            <input className="inp ltr" type="number" value={st.settings.defaultTarget}
+            <input className="inp ltr" type="number" value={st.settings.defaultTarget || ""}
               onChange={(e) => A.setSetting("defaultTarget", num(e.target.value))} />
           </div>
           <div>
             <div style={{ fontSize: 11.5, color: C.ink2, marginBottom: 6 }}>{t("quickSalePct")} %</div>
-            <input className="inp ltr" type="number" value={st.settings.quickSalePct}
+            <input className="inp ltr" type="number" value={st.settings.quickSalePct || ""}
               onChange={(e) => A.setSetting("quickSalePct", num(e.target.value))} />
           </div>
         </div>
