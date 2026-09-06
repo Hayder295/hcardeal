@@ -4107,13 +4107,30 @@ const Styles = ({ rtl, vars }) => (
     @page{size:A4 portrait;margin:12mm 10mm}
 
     @media print{
-      html,body{width:auto!important;margin:0!important;padding:0!important;
-        background:#fff!important}
+      /* ضمان شامل: لا خلفية ملوّنة لأي عنصر إطلاقاً — الصور مستثناة */
+      *,*::before,*::after{
+        background:none!important;background-image:none!important;
+        background-color:transparent!important;
+        box-shadow:none!important;text-shadow:none!important;
+        filter:none!important}
 
-      /* نُخفي شقيقات الحاوية بالحذف لا بالإخفاء البصري —
-         الإخفاء البصري يُبقي الخلفيات تُطبع على iOS */
+      html,body{width:auto!important;margin:0!important;padding:0!important;
+        background:#fff!important;background-color:#fff!important}
+
+      /* ⚠️ السبب الرئيسي للمساحات السوداء:
+         .hcd له تدرّج داكن عند العرض ≥ 760px — وورقة A4 عرضها ≈794px
+         فتُفعَّل القاعدة أثناء الطباعة وتُطلى الصفحة بالأسود.
+         نُلغيه صراحةً هنا. */
+      .hcd,.shell,.shellFrame,.minh{
+        background:none!important;background-image:none!important;
+        background-color:#fff!important;
+        min-height:0!important;height:auto!important;
+        max-width:none!important;width:auto!important;
+        padding:0!important;margin:0!important}
+
+      /* نُخفي شقيقات الحاوية بالحذف لا بالإخفاء البصري */
       body > *{display:none!important}
-      body > .hcd{display:block!important;background:none!important}
+      body > .hcd{display:block!important}
       .hcd > *{display:none!important}
       .hcd > .printOverlay{display:block!important}
 
@@ -7839,12 +7856,20 @@ function AlertsSheet({ st, t, lang, A, go, onClose }) {
 /* ============================== DEAL REPORT =============================== */
 function DealReport({ deal, model, k, t, lang, ccy, st, onClose }) {
   const U = CURRENCIES[ccy].ar;
-  useEffect(() => { const id = setTimeout(() => window.print(), 350);
-    return () => clearTimeout(id); }, []);
+  /* لا طباعة تلقائية — تفتح شاشة الطباعة فوق التقرير وتعلّق الشاشة على iOS.
+     المستخدم يضغط زر الطباعة متى شاء. */
 
   return (
     <div className="printOverlay" style={{ position: "fixed", inset: 0, zIndex: 120,
       background: C.scrimSolid, overflowY: "auto", padding: 14 }}>
+      {/* زر إغلاق ظاهر دائماً */}
+      <button className="noPrint" onClick={() => { buzz(); onClose(); }} aria-label="close"
+        style={{ position: "sticky", top: 0, insetInlineStart: 0, zIndex: 5,
+          width: 44, height: 44, borderRadius: 14, marginBottom: 10,
+          background: C.card, border: `1px solid ${C.line}`, cursor: "pointer",
+          display: "grid", placeItems: "center", color: C.white,
+          font: "800 20px inherit", lineHeight: 1 }}>×</button>
+
       <div className="printArea" style={{ background: "#fff", color: "#111", borderRadius: 12,
         padding: 18, maxWidth: 700, width: "100%", margin: "0 auto", boxSizing: "border-box",
         fontFamily: lang === "ar" ? "'Cairo',sans-serif" : "'Inter',sans-serif" }}>
@@ -7909,8 +7934,9 @@ function DealReport({ deal, model, k, t, lang, ccy, st, onClose }) {
 
       <div className="noPrint" style={{ display: "flex", gap: 10, maxWidth: 700,
         margin: "14px auto 0" }}>
-        <button className="btnO" onClick={onClose}>{t("cancel")}</button>
-        <button className="btnG" onClick={() => window.print()}>{t("printReport")}</button>
+        <button className="btnO" onClick={() => { buzz(); onClose(); }}>{t("cancel")}</button>
+        <button className="btnG" onClick={() => { buzz(); setTimeout(() => window.print(), 60); }}>
+          {t("printReport")}</button>
       </div>
     </div>
   );
