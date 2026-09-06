@@ -4103,36 +4103,59 @@ const Styles = ({ rtl, vars }) => (
     @keyframes hPop{0%{opacity:0;transform:scale(.8)}70%{transform:scale(1.04)}100%{opacity:1;transform:scale(1)}}
     @keyframes hGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
     @keyframes hSheet{from{transform:translateY(30px);opacity:.3}to{transform:none;opacity:1}}
+    /* مقاس الورقة وهوامشها */
+    @page{size:A4 portrait;margin:12mm 10mm}
+
     @media print{
-      body{background:#fff!important}
+      html,body{width:auto!important;margin:0!important;padding:0!important;
+        background:#fff!important}
+
+      /* نخفي كل شيء ثم نُظهر التقرير فقط */
       body *{visibility:hidden!important}
       .printArea,.printArea *{visibility:visible!important}
-      .printArea{position:absolute!important;top:0!important;left:0!important;
-        right:0!important;bottom:auto!important;
-        width:100%!important;max-width:none!important;
+
+      /* التقرير يملأ الورقة من أعلاها */
+      .printArea{position:absolute!important;top:0!important;
+        inset-inline:0!important;bottom:auto!important;
+        width:auto!important;max-width:none!important;
         margin:0!important;padding:0!important;
-        border-radius:0!important;box-shadow:none!important;
-        background:#fff!important;color:#000!important;
-        font-size:11pt!important;line-height:1.55!important}
-      .noPrint,.nav{display:none!important}
+        border:0!important;border-radius:0!important;box-shadow:none!important;
+        font-size:10pt!important;line-height:1.45!important}
+
+      /* ⚠️ الأهم: كل الخلفيات تصير بيضاء والنص أسود
+         بدون هذا تُطبع خلفيات الثيم الغامق كمساحات سوداء */
+      .printArea,.printArea *{
+        background:transparent!important;
+        background-image:none!important;
+        background-color:transparent!important;
+        color:#000!important;
+        box-shadow:none!important;
+        text-shadow:none!important}
+
+      /* الحاوية الخارجية للتقرير بيضاء صريحة */
+      .printArea{background:#fff!important}
+
+      /* الحدود تبقى رمادية خفيفة لا سوداء ثقيلة */
+      .printArea *{border-color:#CCC!important}
+
+      /* الألوان الدلالية تبقى — الربح والخسارة */
+      .printArea .pGreen,.printArea .pGreen *{color:#0A7!important}
+      .printArea .pRed,.printArea .pRed *{color:#C00!important}
+
+      /* الصور والشعار يبقيان بألوانهما */
+      .printArea img{-webkit-print-color-adjust:exact!important;
+        print-color-adjust:exact!important;
+        background:transparent!important;max-width:100%!important}
+
+      /* إخفاء ما لا يُطبع */
+      .noPrint,.nav,.sheetWrap,.fab{display:none!important}
 
       /* منع قص العناصر بين الصفحات */
-      .printArea *{box-shadow:none!important}
       .printArea table,.printArea tr,.printArea img{break-inside:avoid;
         page-break-inside:avoid}
       .printArea h1,.printArea h2,.printArea h3{break-after:avoid;
         page-break-after:avoid}
       .pBlock{break-inside:avoid;page-break-inside:avoid}
-
-      /* ألوان الخلفيات تُطبع كما هي */
-      .printArea{-webkit-print-color-adjust:exact!important;
-        print-color-adjust:exact!important}
-    }
-
-    /* مقاس الورقة وهوامشها */
-    @page{size:A4 portrait;margin:14mm 12mm}
-    @media print{
-      html,body{width:210mm!important;margin:0!important;padding:0!important}
     }
     @keyframes hShine{0%{transform:translateX(-160%) skewX(-18deg)}
       100%{transform:translateX(320%) skewX(-18deg)}}
@@ -7739,9 +7762,11 @@ function LeadsSheet({ deal, A, t, lang, ccy, onClose }) {
 
 /* سطر في تقرير الطباعة — مرفوع لمنع إعادة التركيب */
 function ReportLine({ l, v, bold, col }) {
+  /* الصنف يحفظ اللون الدلالي عند الطباعة */
+  const cls = col === "#0A7" ? "pGreen" : col === "#C00" ? "pRed" : "";
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0",
-      borderBottom: "1px solid #E4E4E8", fontSize: bold ? 14 : 12.5,
+    <div className={cls} style={{ display: "flex", justifyContent: "space-between",
+      padding: "5px 0", borderBottom: "1px solid #E4E4E8", fontSize: bold ? 13 : 11.5,
       fontWeight: bold ? 800 : 500, color: col || "#111" }}>
       <span>{l}</span><span style={{ direction: "ltr" }}>{v}</span>
     </div>
@@ -7806,20 +7831,20 @@ function DealReport({ deal, model, k, t, lang, ccy, st, onClose }) {
     <div style={{ position: "fixed", inset: 0, zIndex: 120, background: C.scrimSolid,
       overflowY: "auto", padding: 14 }}>
       <div className="printArea" style={{ background: "#fff", color: "#111", borderRadius: 12,
-        padding: 22, maxWidth: 700, width: "100%", margin: "0 auto", boxSizing: "border-box",
+        padding: 18, maxWidth: 700, width: "100%", margin: "0 auto", boxSizing: "border-box",
         fontFamily: lang === "ar" ? "'Cairo',sans-serif" : "'Inter',sans-serif" }}>
         <div className="pBlock" style={{ display: "flex", alignItems: "center", gap: 12,
-          borderBottom: "2px solid #111", paddingBottom: 12, marginBottom: 16 }}>
-          <img src={LOGO_SRC} alt="" style={{ height: 46 }} />
+          borderBottom: "2px solid #111", paddingBottom: 10, marginBottom: 12 }}>
+          <img src={LOGO_SRC} alt="" style={{ height: 38 }} />
           <div style={{ flex: 1, textAlign: "end" }}>
             <div style={{ fontSize: 17, fontWeight: 800 }}>{t("report")}</div>
             <div className="num" style={{ fontSize: 10.5, color: "#666" }}>{todayISO()}</div>
           </div>
         </div>
 
-        <h2 style={{ fontSize: 20, fontWeight: 800, direction: "ltr", marginBottom: 2 }}>
+        <h2 style={{ fontSize: 17, fontWeight: 800, direction: "ltr", marginBottom: 2 }}>
           {model?.brand} {model?.model} <span style={{ color: "#C00" }}>{model?.year}</span></h2>
-        <div style={{ fontSize: 11.5, color: "#555", marginBottom: 16, direction: "ltr" }}>
+        <div style={{ fontSize: 10.5, color: "#555", marginBottom: 12, direction: "ltr" }}>
           {[model?.trim, model?.engine, deal.vin && `VIN ${deal.vin}`,
             deal.mileage && `${f0(num(deal.mileage))} km`].filter(Boolean).join("  ·  ")}
         </div>
@@ -7841,8 +7866,8 @@ function DealReport({ deal, model, k, t, lang, ccy, st, onClose }) {
 
         {deal.expenses.length > 0 && (
           <>
-            <h3 className="pBlock" style={{ fontSize: 13.5, fontWeight: 800,
-              margin: "18px 0 8px" }}>{t("expList")}</h3>
+            <h3 className="pBlock" style={{ fontSize: 12.5, fontWeight: 800,
+              margin: "14px 0 6px" }}>{t("expList")}</h3>
             {deal.expenses.map((e) => (
               <ReportLine key={e.expenseId}
                 l={e.description || (EXPENSE_CATS[e.category] || EXPENSE_CATS.other)[lang]}
@@ -7854,13 +7879,13 @@ function DealReport({ deal, model, k, t, lang, ccy, st, onClose }) {
         {deal.notes && (
           <>
             <div className="pBlock">
-              <h3 style={{ fontSize: 13.5, fontWeight: 800, margin: "18px 0 8px" }}>{t("notes")}</h3>
+              <h3 style={{ fontSize: 12.5, fontWeight: 800, margin: "14px 0 6px" }}>{t("notes")}</h3>
               <p style={{ fontSize: 12.5, lineHeight: 1.9, color: "#333" }}>{deal.notes}</p>
             </div>
           </>
         )}
 
-        <div className="pBlock" style={{ marginTop: 22, paddingTop: 12,
+        <div className="pBlock" style={{ marginTop: 16, paddingTop: 10,
           borderTop: "1px solid #DDD",
           fontSize: 10.5, color: "#777", textAlign: "center", direction: "ltr" }}>
           {t("reportBy")} H CAR DEAL — BUY • COST • SELL • PROFIT
