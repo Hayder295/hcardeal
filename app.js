@@ -4488,7 +4488,7 @@ function PhotoCarousel({ photos, fallback, h = 190, index = 0, onIndex }) {
 
 function AppHeader({ onMenu, onProfile, onAlerts, alertCount }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", padding: "6px 0 16px" }}>
+    <div style={{ display: "flex", alignItems: "center", padding: "2px 0 10px" }}>
       <button onClick={onMenu} aria-label="menu" style={{ background: "none", border: 0,
         cursor: "pointer", padding: 6, width: 40 }}><Ic n="menu" c={C.white} s={22} w={1.8} /></button>
       <div style={{ flex: 1, display: "grid", placeItems: "center" }}><Logo h={34} /></div>
@@ -4974,7 +4974,7 @@ function HCarDeal({ account, onSignOut }) {
 
   return (
     <div className="hcd shellFrame minh" style={{
-        padding: "10px 14px calc(124px + env(safe-area-inset-bottom))" }}>
+        padding: "calc(6px + env(safe-area-inset-top)) 14px calc(124px + env(safe-area-inset-bottom))" }}>
       <Styles rtl={rtl} vars={theme.vars} />
       <div className="shell">
         <AppHeader onMenu={() => go("garage")} onProfile={() => go("settings")}
@@ -5173,10 +5173,7 @@ function HomeScreen({ deal, model, k, A, t, lang, ccy, go, st, setSheet }) {
 
   return (
     <>
-      {/* الشعار المعتمد */}
-      <div style={{ display: "grid", placeItems: "center", padding: "0 0 14px" }}>
-        <Logo h={38} />
-      </div>
+      {/* الشعار في الرأس فقط — لا تكرار */}
 
       {/* السيارة الحالية — صورتك الحقيقية إن وُجدت */}
       <div className="card" style={{ padding: 4, overflow: "hidden", marginBottom: 12,
