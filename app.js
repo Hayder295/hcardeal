@@ -4110,16 +4110,31 @@ const Styles = ({ rtl, vars }) => (
       html,body{width:auto!important;margin:0!important;padding:0!important;
         background:#fff!important}
 
-      /* نخفي كل شيء ثم نُظهر التقرير فقط */
-      body *{visibility:hidden!important}
-      .printArea,.printArea *{visibility:visible!important}
+      /* نُخفي شقيقات الحاوية بالحذف لا بالإخفاء البصري —
+         الإخفاء البصري يُبقي الخلفيات تُطبع على iOS */
+      body > *{display:none!important}
+      body > .hcd{display:block!important;background:none!important}
+      .hcd > *{display:none!important}
+      .hcd > .printOverlay{display:block!important}
 
-      /* التقرير يملأ الورقة من أعلاها */
-      .printArea{position:absolute!important;top:0!important;
-        inset-inline:0!important;bottom:auto!important;
+      /* ثم الإخفاء البصري كطبقة ثانية */
+      body *{visibility:hidden!important}
+      .printOverlay,.printArea,.printArea *{visibility:visible!important}
+
+      /* ⚠️ الحاوية الخارجية fixed بخلفية داكنة — تُطبع على iOS رغم الإخفاء
+         نجعلها عادية وشفافة تماماً */
+      .printOverlay{position:static!important;inset:auto!important;
+        background:none!important;background-color:transparent!important;
+        padding:0!important;margin:0!important;overflow:visible!important;
+        height:auto!important;min-height:0!important;z-index:auto!important}
+
+      /* التقرير في التدفق العادي — لا absolute ولا fixed
+         الـabsolute يمنع التمدد لصفحات متعددة على iOS */
+      .printArea{position:static!important;
         width:auto!important;max-width:none!important;
         margin:0!important;padding:0!important;
         border:0!important;border-radius:0!important;box-shadow:none!important;
+        overflow:visible!important;height:auto!important;
         font-size:10pt!important;line-height:1.45!important}
 
       /* ⚠️ الأهم: كل الخلفيات تصير بيضاء والنص أسود
@@ -7828,8 +7843,8 @@ function DealReport({ deal, model, k, t, lang, ccy, st, onClose }) {
     return () => clearTimeout(id); }, []);
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 120, background: C.scrimSolid,
-      overflowY: "auto", padding: 14 }}>
+    <div className="printOverlay" style={{ position: "fixed", inset: 0, zIndex: 120,
+      background: C.scrimSolid, overflowY: "auto", padding: 14 }}>
       <div className="printArea" style={{ background: "#fff", color: "#111", borderRadius: 12,
         padding: 18, maxWidth: 700, width: "100%", margin: "0 auto", boxSizing: "border-box",
         fontFamily: lang === "ar" ? "'Cairo',sans-serif" : "'Inter',sans-serif" }}>
