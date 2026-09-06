@@ -1,7 +1,7 @@
 /* H CAR DEAL — Service Worker
    يخزّن الغلاف ومكتبات CDN حتى يعمل التطبيق بلا إنترنت بعد أول تشغيل.
    لا يلمس IndexedDB — بياناتك ليست هنا. */
-const VERSION = "hcd-nb-v1.0.0";
+const VERSION = "hcd-nb-v1.0.3729";
 const BASE = new URL("./", self.registration.scope).pathname;
 
 const CORE = [
